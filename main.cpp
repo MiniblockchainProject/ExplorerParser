@@ -801,14 +801,14 @@ void parse_blocks(std::vector<BlockData*>& blocks)
 void build_rich_list(std::vector<std::pair<uint64_t, std::string>>& rich_list)
 {
     std::cout << "Computing rich list ..." << std::endl;
-    std::string zero_str32(20, 0);
+    std::string zero_str20(20, 0);
 
     for (const auto& item : tx_addr_map)
     {
         AddrData& addr_data(*item.second);
 
         if (addr_data.stats.inpSum > addr_data.stats.outSum) {
-            if (item.first == zero_str32) {
+            if (item.first == zero_str20) {
                 continue;
             } else {
                 std::string address(HexEncode(item.first));
@@ -985,6 +985,26 @@ void update_db_files(const std::string& db_dir)
     } else {
         throw std::runtime_error("Unable to create db file: "+db_dir+"block_dat");
     }
+
+    // append tx_addr_map to existing file
+    std::ofstream txfile("./db/tx_dat", std::ios::app);
+    if (!txfile.is_open()) {
+        std::cout << "tx_dat file open fail!" << std::endl;
+        exit(EXIT_SUCCESS);
+    }
+    auto iter = tx_addr_map.begin();
+    while (iter != tx_addr_map.end()) {
+        txfile << HexEncode(iter->first) << ' ';
+        std::string txn_lists = iter->second->TxnListSS().str();
+        std::replace(txn_lists.begin(), txn_lists.end(), '\n', ';');
+        txfile << txn_lists << ' ';
+        txfile << std::to_string(iter->second->stats.inpCnt) << ' ';
+        txfile << std::to_string(iter->second->stats.inpSum) << ' ';
+        txfile << std::to_string(iter->second->stats.outCnt) << ' ';
+        txfile << std::to_string(iter->second->stats.outSum) << std::endl;
+        iter++;
+    }
+    txfile.close();
 }
 
 void save_db_files(const std::string& db_dir)
@@ -1051,6 +1071,26 @@ void save_db_files(const std::string& db_dir)
     } else {
         throw std::runtime_error("Unable to create db file: "+db_dir+"block_dat");
     }
+
+    // save tx_addr_map to file
+    std::ofstream txfile("./db/tx_dat", std::ios::out);
+    if (!txfile.is_open()) {
+        std::cout << "tx_dat file open fail!" << std::endl;
+        exit(EXIT_SUCCESS);
+    }
+    auto iter = tx_addr_map.begin();
+    while (iter != tx_addr_map.end()) {
+        txfile << HexEncode(iter->first) << ' ';
+        std::string txn_lists = iter->second->TxnListSS().str();
+        std::replace(txn_lists.begin(), txn_lists.end(), '\n', ';');
+        txfile << txn_lists << ' ';
+        txfile << std::to_string(iter->second->stats.inpCnt) << ' ';
+        txfile << std::to_string(iter->second->stats.inpSum) << ' ';
+        txfile << std::to_string(iter->second->stats.outCnt) << ' ';
+        txfile << std::to_string(iter->second->stats.outSum) << std::endl;
+        iter++;
+    }
+    txfile.close();
 }
 
 void create_db_dirs(const std::string db_dir)
@@ -1190,12 +1230,40 @@ int main(int argc, char *argv[])
 
     } else if (parser_mode == "-richlist") {
 
-        last_block_hash = read_block_files(block_folder);
-        std::vector<BlockData*> block_chain(build_chain_links());
-        parse_blockchain(block_chain);
+        // read tx_addr_map from tx_dat
+        tx_addr_map.clear();
+        std::ifstream txfile("./db/tx_dat", std::ios::in);
+        if (!txfile.is_open()) {
+            std::cout << "tx_dat file open fail!" << std::endl;
+            exit(EXIT_SUCCESS);
+        }
+        while (!txfile.eof()) {
+            std::string address, txn_lists, inp_cnt, inp_sum, out_cnt, out_sum;
+            txfile >> address >> txn_lists >> inp_cnt >> inp_sum >> out_cnt >> out_sum;
+            std::replace(txn_lists.begin(), txn_lists.end(), ';' , '\n');
+            if (txn_lists.size()) {
+                if (tx_addr_map.contains(HexDecode(address))) {
+                    tx_addr_map[HexDecode(address)]->TxnListSS() << txn_lists;
+                    tx_addr_map[HexDecode(address)]->stats.inpCnt += stoull(inp_cnt);
+                    tx_addr_map[HexDecode(address)]->stats.inpSum += stoull(inp_sum);
+                    tx_addr_map[HexDecode(address)]->stats.outCnt += stoull(out_cnt);
+                    tx_addr_map[HexDecode(address)]->stats.outSum += stoull(out_sum);
+                }
+                else {
+                    AddrData* tmp_addr_data = new AddrData();
+                    tmp_addr_data->TxnListSS() << txn_lists;
+                    tmp_addr_data->stats.inpCnt = stoull(inp_cnt);
+                    tmp_addr_data->stats.inpSum = stoull(inp_sum);
+                    tmp_addr_data->stats.outCnt = stoull(out_cnt);
+                    tmp_addr_data->stats.outSum = stoull(out_sum);
+                    tx_addr_map[HexDecode(address)] = tmp_addr_data;
+                }
+            }
+        }
+        txfile.close();
 
         std::vector<std::pair<uint64_t, std::string>> rich_list;
-        rich_list.reserve(block_chain.size());
+        rich_list.reserve(tx_addr_map.size());
         build_rich_list(rich_list);
         save_rich_list(db_folder, rich_list);
 

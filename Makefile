@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-I. -O2 -s -Wall -m64 -fexceptions -std=c++11
-LDFLAGS=-lgmp -lcryptopp -lstdc++
+LDFLAGS=-lgmp -lcryptopp -lstdc++ -lm
 DEPS = utils.h base58.h
 OBJ = main.o hash/haval.o hash/keccak.o hash/ripemd.o hash/sha2big.o hash/sha2.o hash/tiger.o hash/whirlpool.o
 
