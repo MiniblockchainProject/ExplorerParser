@@ -995,9 +995,6 @@ void update_db_files(const std::string& db_dir)
     auto iter = tx_addr_map.begin();
     while (iter != tx_addr_map.end()) {
         txfile << HexEncode(iter->first) << ' ';
-        std::string txn_lists = iter->second->TxnListSS().str();
-        std::replace(txn_lists.begin(), txn_lists.end(), '\n', ';');
-        txfile << txn_lists << ' ';
         txfile << std::to_string(iter->second->stats.inpCnt) << ' ';
         txfile << std::to_string(iter->second->stats.inpSum) << ' ';
         txfile << std::to_string(iter->second->stats.outCnt) << ' ';
@@ -1081,9 +1078,6 @@ void save_db_files(const std::string& db_dir)
     auto iter = tx_addr_map.begin();
     while (iter != tx_addr_map.end()) {
         txfile << HexEncode(iter->first) << ' ';
-        std::string txn_lists = iter->second->TxnListSS().str();
-        std::replace(txn_lists.begin(), txn_lists.end(), '\n', ';');
-        txfile << txn_lists << ' ';
         txfile << std::to_string(iter->second->stats.inpCnt) << ' ';
         txfile << std::to_string(iter->second->stats.inpSum) << ' ';
         txfile << std::to_string(iter->second->stats.outCnt) << ' ';
@@ -1238,26 +1232,15 @@ int main(int argc, char *argv[])
             exit(EXIT_SUCCESS);
         }
         while (!txfile.eof()) {
-            std::string address, txn_lists, inp_cnt, inp_sum, out_cnt, out_sum;
-            txfile >> address >> txn_lists >> inp_cnt >> inp_sum >> out_cnt >> out_sum;
-            std::replace(txn_lists.begin(), txn_lists.end(), ';' , '\n');
-            if (txn_lists.size()) {
-                if (tx_addr_map.contains(HexDecode(address))) {
-                    tx_addr_map[HexDecode(address)]->TxnListSS() << txn_lists;
-                    tx_addr_map[HexDecode(address)]->stats.inpCnt += stoull(inp_cnt);
-                    tx_addr_map[HexDecode(address)]->stats.inpSum += stoull(inp_sum);
-                    tx_addr_map[HexDecode(address)]->stats.outCnt += stoull(out_cnt);
-                    tx_addr_map[HexDecode(address)]->stats.outSum += stoull(out_sum);
-                }
-                else {
-                    AddrData* tmp_addr_data = new AddrData();
-                    tmp_addr_data->TxnListSS() << txn_lists;
-                    tmp_addr_data->stats.inpCnt = stoull(inp_cnt);
-                    tmp_addr_data->stats.inpSum = stoull(inp_sum);
-                    tmp_addr_data->stats.outCnt = stoull(out_cnt);
-                    tmp_addr_data->stats.outSum = stoull(out_sum);
-                    tx_addr_map[HexDecode(address)] = tmp_addr_data;
-                }
+            std::string address, inp_cnt, inp_sum, out_cnt, out_sum;
+            txfile >> address >> inp_cnt >> inp_sum >> out_cnt >> out_sum;
+            if (address.size()) {
+                AddrData* tmp_addr_data = new AddrData();
+                tmp_addr_data->stats.inpCnt = stoull(inp_cnt);
+                tmp_addr_data->stats.inpSum = stoull(inp_sum);
+                tmp_addr_data->stats.outCnt = stoull(out_cnt);
+                tmp_addr_data->stats.outSum = stoull(out_sum);
+                tx_addr_map[HexDecode(address)] = tmp_addr_data;
             }
         }
         txfile.close();
